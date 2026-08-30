@@ -1,6 +1,6 @@
 # WSync
 
-Plataforma B2B de gestão inteligente de **offboarding** de colaboradores e **transferência de conhecimento via IA**, desenvolvida para a **wape solutions**.
+Plataforma B2B de gestão inteligente de **offboarding** de colaboradores e **transferência de conhecimento via IA**, desenvolvida pela **wape solutions**.
 
 O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o conhecimento operacional dele através de uma entrevista guiada por IA, gera automaticamente um manual de processos (SOP) para o sucessor, controla a devolução de equipamentos e centraliza a revogação de acessos em sistemas de TI.
 
