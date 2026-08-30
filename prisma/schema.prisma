@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OffboardingStatus {
+  AI_CAPTURE
+  IT_ACTION
+  COMPLETED
+  CANCELLED
+}
+
+enum AssetType {
+  NOTEBOOK
+  MONITOR
+  PERIPHERAL
+  BADGE
+}
+
+enum AssetStatus {
+  PENDING_RETURN
+  RETURNED
+  DAMAGED
+}
+
+enum KnowledgeStatus {
+  DRAFT
+  PROCESSING
+  READY
+  APPROVED
+}
+
+enum IntegrationProvider {
+  GOOGLE_WORKSPACE
+  MICROSOFT_ENTRA
+  SLACK
+  GITHUB
+  OKTA
+  NOTION
+  FIGMA
+}
+
+enum IntegrationStatus {
+  PENDING
+  CONNECTED
+  ERROR
+}
+
+enum LogStatus {
+  SUCCESS
+  ERROR
+}
+
+model OffboardingSession {
+  id           String            @id @default(cuid())
+  employeeName String
+  email        String
+  role         String
+  department   String
+  exitDate     DateTime
+  status       OffboardingStatus @default(AI_CAPTURE)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  interviewToken    InterviewToken?
+  interviewResponse ExitInterviewResponse?
+  knowledgeDocument KnowledgeDocument?
+  assets            Asset[]
+  tasks             PendingTask[]
+  accessRevocations AccessRevocation[]
+}
+
+model InterviewToken {
+  id                   String             @id @default(cuid())
+  token                String             @unique @default(cuid())
+  offboardingSessionId String             @unique
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+  used                 Boolean            @default(false)
+  expiresAt            DateTime
+  createdAt            DateTime           @default(now())
+}
+
+model ExitInterviewResponse {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String             @unique
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  dailyRoutines   String @db.Text
+  weeklyRoutines  String @db.Text
+  monthlyRoutines String @db.Text
+
+  projectsPending String @db.Text
+  fileLinks       String @db.Text
+  requiredAccess  String @db.Text
+
+  keyContacts    String @db.Text
+  successorNotes String @db.Text
+
+  submittedAt DateTime @default(now())
+}
+
+model KnowledgeDocument {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String             @unique
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  title           String
+  department      String
+  markdownContent String          @db.Text
+  status          KnowledgeStatus @default(DRAFT)
+  generatedAt     DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  approvedAt      DateTime?
+}
+
+model Asset {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  type         AssetType
+  serialNumber String
+  status       AssetStatus @default(PENDING_RETURN)
+  notes        String?     @db.Text
+  updatedAt    DateTime    @updatedAt
+  createdAt    DateTime    @default(now())
+}
+
+model PendingTask {
+  id                   String              @id @default(cuid())
+  offboardingSessionId String?
+  offboardingSession   OffboardingSession? @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  urgent      Boolean  @default(false)
+  done        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Integration {
+  id           String              @id @default(cuid())
+  provider     IntegrationProvider @unique
+  status       IntegrationStatus   @default(PENDING)
+  config       Json?
+  lastTestedAt DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  logs IntegrationLog[]
+}
+
+model IntegrationLog {
+  id            String      @id @default(cuid())
+  integrationId String
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  action     String
+  targetUser String
+  status     LogStatus
+  statusCode Int
+  message    String
+  createdAt  DateTime  @default(now())
+}
+
+model AccessRevocation {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  provider  IntegrationProvider
+  revoked   Boolean             @default(false)
+  revokedAt DateTime?
+  createdAt DateTime            @default(now())
+}
