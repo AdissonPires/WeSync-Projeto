@@ -18,6 +18,8 @@ const titles: Record<string, string> = {
   "/offboardings": "Desligamentos",
   "/offboardings/new": "Novo Desligamento",
   "/knowledge": "Base de Conhecimento (IA)",
+  "/templates": "Templates de Entrevista",
+  "/analytics": "Analytics de Turnover",
   "/integrations": "Integrações de TI",
   "/legal": "Jurídico",
   "/compliance": "Compliance",

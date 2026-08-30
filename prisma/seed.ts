@@ -20,6 +20,98 @@ async function main() {
   await prisma.exitInterviewResponse.deleteMany();
   await prisma.interviewToken.deleteMany();
   await prisma.offboardingSession.deleteMany();
+  await prisma.interviewTemplate.deleteMany();
+
+  // --- Interview templates (questionários dinâmicos por departamento) ---
+  const engenhariaSteps = [
+    {
+      title: "Repositórios, Deploys & Infraestrutura",
+      description: "Nos ajude a mapear o que você mantém tecnicamente.",
+      questions: [
+        {
+          id: "repos",
+          label: "Quais repositórios de código você mantém ou administra?",
+          placeholder: "Ex: acme/api-pagamentos (admin), acme/infra-terraform (colaborador)…",
+        },
+        {
+          id: "deployProcess",
+          label: "Como funciona o processo de deploy dos seus projetos?",
+          placeholder: "Ex: CI no GitHub Actions, deploy automático na main, aprovação manual em produção…",
+        },
+        {
+          id: "servers",
+          label: "Quais servidores, bancos de dados ou serviços em nuvem você administra?",
+          placeholder: "Ex: RDS de produção, bucket S3 de backups, cluster Kubernetes…",
+        },
+      ],
+    },
+    {
+      title: "Rotinas Técnicas",
+      description: "Descreva suas atividades recorrentes.",
+      questions: [
+        { id: "dailyRoutines", label: "Rotinas diárias", placeholder: "Ex: Reviso PRs, monitoro alertas…" },
+        { id: "weeklyRoutines", label: "Rotinas semanais", placeholder: "Ex: Deploy de produção toda sexta…" },
+      ],
+    },
+    {
+      title: "Passagem de Bastão",
+      description: "Ajude quem for assumir suas atividades a começar com o pé direito.",
+      questions: [
+        { id: "keyContacts", label: "Contatos técnicos-chave", placeholder: "Ex: Time de Dados para métricas de API…" },
+        { id: "successorNotes", label: "Recomendações para o sucessor", placeholder: "Ex: Comece revisando os PRs em aberto…" },
+      ],
+    },
+  ];
+
+  const vendasSteps = [
+    {
+      title: "Carteira de Clientes",
+      description: "Mapeie os relacionamentos comerciais sob sua responsabilidade.",
+      questions: [
+        {
+          id: "clientPortfolio",
+          label: "Descreva sua carteira de clientes ativos",
+          placeholder: "Ex: 12 contas enterprise, destaque para Acme Retail (contrato renovando em out/2026)…",
+        },
+        {
+          id: "negotiations",
+          label: "Há contas em negociação ou risco de churn?",
+          placeholder: "Ex: Cliente X está avaliando concorrente, negociação de desconto em andamento…",
+        },
+      ],
+    },
+    {
+      title: "Pipeline & Processos Comerciais",
+      description: "Como você organiza e conduz suas vendas.",
+      questions: [
+        {
+          id: "pipelineProcess",
+          label: "Como você organiza seu pipeline de vendas?",
+          placeholder: "Ex: Uso o CRM HubSpot, funil com 5 etapas, follow-up semanal…",
+        },
+        {
+          id: "salesTools",
+          label: "Ferramentas e rotinas que utiliza no dia a dia comercial",
+          placeholder: "Ex: HubSpot, planilha de metas, reunião semanal de forecast…",
+        },
+      ],
+    },
+    {
+      title: "Passagem de Bastão",
+      description: "Ajude quem for assumir sua carteira a começar com o pé direito.",
+      questions: [
+        { id: "keyContacts", label: "Contatos-chave dos clientes", placeholder: "Ex: Maria (decisora na Acme Retail)…" },
+        { id: "successorNotes", label: "Recomendações para o sucessor", placeholder: "Ex: Priorize a renovação do contrato X…" },
+      ],
+    },
+  ];
+
+  await prisma.interviewTemplate.create({
+    data: { department: "Engenharia", title: "Questionário Técnico — Engenharia", steps: engenhariaSteps },
+  });
+  await prisma.interviewTemplate.create({
+    data: { department: "Vendas", title: "Questionário Comercial — Vendas", steps: vendasSteps },
+  });
 
   // --- Integrations -------------------------------------------------
   const googleIntegration = await prisma.integration.create({
@@ -100,24 +192,35 @@ async function main() {
     },
   });
 
-  const rafaelResponses = {
+  const rafaelAnswers = {
+    repos: "acme/api-pagamentos (admin), acme/infra-terraform (colaborador), acme/mobile-app (colaborador).",
+    deployProcess: "CI no GitHub Actions, deploy automático na main para staging, aprovação manual para produção.",
+    servers: "RDS de produção (Postgres), bucket S3 de backups, cluster Kubernetes de pagamentos.",
+    dailyRoutines: "Reviso PRs abertos, participo do daily do time, monitoro alertas do Sentry.",
+    weeklyRoutines: "Toda sexta faço o deploy de produção e atualizo o changelog interno.",
+    keyContacts: "Camila (RH) para dúvidas de processo, time de Dados para métricas de API.",
+    successorNotes: "Comece revisando os PRs em aberto antes de iniciar o rollout da migração de pagamentos.",
+  };
+
+  const rafaelVoiceTranscript =
+    "## Repositórios, Deploys & Infraestrutura\n[Transcrição de exemplo] A migração do serviço de pagamentos está 70% concluída, falta apenas o rollout gradual para os clientes enterprise. A documentação técnica completa está em notion.so/acme/pagamentos, e o sucessor vai precisar de acesso admin ao GitHub da organização e à chave de produção do Stripe.";
+
+  const rafaelMarkdown = await generateExitReport({
     employeeName: rafael.employeeName,
     role: rafael.role,
     department: rafael.department,
-    dailyRoutines: "Reviso PRs abertos, participo do daily do time, monitoro alertas do Sentry.",
-    weeklyRoutines: "Toda sexta faço o deploy de produção e atualizo o changelog interno.",
-    monthlyRoutines: "No fim do mês reviso métricas de performance da API com o time de dados.",
-    projectsPending: "Migração do serviço de pagamentos está 70% concluída, falta o rollout gradual.",
-    fileLinks: "Documentação técnica: notion.so/acme/pagamentos",
-    requiredAccess: "Acesso admin ao GitHub da organização, chave de produção do Stripe.",
-    keyContacts: "Camila (RH) para dúvidas de processo, time de Dados para métricas de API.",
-    successorNotes: "Comece revisando os PRs em aberto antes de iniciar o rollout da migração.",
-  };
-
-  const rafaelMarkdown = await generateExitReport(rafaelResponses);
+    steps: engenhariaSteps,
+    answers: rafaelAnswers,
+    voiceTranscript: rafaelVoiceTranscript,
+  });
 
   await prisma.exitInterviewResponse.create({
-    data: { offboardingSessionId: rafael.id, ...omit(rafaelResponses, ["employeeName", "role", "department"]) },
+    data: {
+      offboardingSessionId: rafael.id,
+      templateSnapshot: engenhariaSteps,
+      answers: rafaelAnswers,
+      voiceTranscript: rafaelVoiceTranscript,
+    },
   });
 
   await prisma.knowledgeDocument.create({
@@ -262,12 +365,6 @@ async function main() {
   console.log("\nSeed concluído.");
   console.log(`Link de entrevista pendente (Marina Costa): /interview/${marinaToken.token}`);
   console.log(`Portal do ex-colaborador (Rafael Almeida): /ex-portal/${rafaelPortal.accessToken}`);
-}
-
-function omit<T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
-  const clone = { ...obj };
-  for (const key of keys) delete clone[key];
-  return clone;
 }
 
 main()

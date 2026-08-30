@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { exitInterviewSchema } from "@/lib/validations";
 import { generateExitReport } from "@/lib/ai/generate-exit-report";
+import { getTemplateForDepartment } from "@/app/actions/templates";
+import type { TemplateStep } from "@/lib/interview-template";
 
 export interface InterviewTokenInfo {
   employeeName: string;
@@ -13,6 +16,8 @@ export interface InterviewTokenInfo {
   companyName: string;
   valid: boolean;
   reason?: "not_found" | "expired" | "used";
+  templateTitle?: string;
+  steps?: TemplateStep[];
 }
 
 export async function getInterviewByToken(token: string): Promise<InterviewTokenInfo | null> {
@@ -36,7 +41,10 @@ export async function getInterviewByToken(token: string): Promise<InterviewToken
   if (interviewToken.expiresAt < new Date()) {
     return { ...base, valid: false, reason: "expired" };
   }
-  return { ...base, valid: true };
+
+  const template = await getTemplateForDepartment(interviewToken.offboardingSession.department);
+
+  return { ...base, valid: true, templateTitle: template.title, steps: template.steps };
 }
 
 export async function submitEmployeeExitInterview(input: unknown): Promise<ActionResult> {
@@ -46,7 +54,7 @@ export async function submitEmployeeExitInterview(input: unknown): Promise<Actio
   }
 
   try {
-    const { token, ...responses } = parsed.data;
+    const { token, answers, voiceTranscript } = parsed.data;
 
     const interviewToken = await prisma.interviewToken.findUnique({
       where: { token },
@@ -58,10 +66,21 @@ export async function submitEmployeeExitInterview(input: unknown): Promise<Actio
     if (interviewToken.expiresAt < new Date()) return fail("Este link de entrevista expirou.");
 
     const session = interviewToken.offboardingSession;
+    const template = await getTemplateForDepartment(session.department);
+
+    const missing = template.steps
+      .flatMap((step) => step.questions)
+      .find((q) => !answers[q.id] || answers[q.id].trim().length === 0);
+    if (missing) return fail(`Responda a pergunta "${missing.label}" antes de enviar.`);
 
     await prisma.$transaction([
       prisma.exitInterviewResponse.create({
-        data: { offboardingSessionId: session.id, ...responses },
+        data: {
+          offboardingSessionId: session.id,
+          templateSnapshot: template.steps as unknown as Prisma.InputJsonValue,
+          answers: answers as unknown as Prisma.InputJsonValue,
+          voiceTranscript: voiceTranscript || null,
+        },
       }),
       prisma.interviewToken.update({
         where: { id: interviewToken.id },
@@ -88,11 +107,14 @@ export async function submitEmployeeExitInterview(input: unknown): Promise<Actio
       employeeName: session.employeeName,
       role: session.role,
       department: session.department,
-      ...responses,
+      steps: template.steps,
+      answers,
+      voiceTranscript,
     }).catch((error) => console.error("Falha ao gerar relatório de IA:", error));
 
     revalidatePath("/");
     revalidatePath("/knowledge");
+    revalidatePath("/analytics");
 
     return ok();
   } catch (error) {

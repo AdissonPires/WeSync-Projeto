@@ -48,6 +48,8 @@ export default async function InterviewPage({
             role={info.role}
             department={info.department}
             companyName={info.companyName}
+            templateTitle={info.templateTitle ?? "Questionário Padrão"}
+            steps={info.steps ?? []}
           />
         )}
       </main>

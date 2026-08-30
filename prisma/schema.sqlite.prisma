@@ -117,21 +117,28 @@ model InterviewToken {
   createdAt            DateTime           @default(now())
 }
 
+/// Questionário dinâmico por departamento (Gestão de Templates).
+model InterviewTemplate {
+  id         String   @id @default(cuid())
+  department String   @unique
+  title      String
+  /// TemplateStep[] — ver lib/interview-template.ts
+  steps      Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model ExitInterviewResponse {
   id                   String             @id @default(cuid())
   offboardingSessionId String             @unique
   offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
 
-  dailyRoutines   String
-  weeklyRoutines  String
-  monthlyRoutines String
-
-  projectsPending String
-  fileLinks       String
-  requiredAccess  String
-
-  keyContacts    String
-  successorNotes String
+  /// Snapshot do template (steps/perguntas) exatamente como usado nesta entrevista.
+  templateSnapshot Json
+  /// Respostas digitadas, mapeadas por questionId -> texto.
+  answers          Json
+  /// Transcrição consolidada das notas de voz gravadas (Whisper), por passo.
+  voiceTranscript  String?
 
   submittedAt DateTime @default(now())
 }

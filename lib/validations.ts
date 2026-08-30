@@ -12,16 +12,29 @@ export type CreateOffboardingInput = z.infer<typeof createOffboardingSchema>;
 
 export const exitInterviewSchema = z.object({
   token: z.string().min(1),
-  dailyRoutines: z.string().min(10, "Descreva suas rotinas diárias com mais detalhes"),
-  weeklyRoutines: z.string().min(10, "Descreva suas rotinas semanais com mais detalhes"),
-  monthlyRoutines: z.string().min(1, "Descreva suas rotinas mensais"),
-  projectsPending: z.string().min(1, "Liste os projetos e pendências"),
-  fileLinks: z.string().min(1, "Informe links de arquivos relevantes"),
-  requiredAccess: z.string().min(1, "Informe os acessos necessários"),
-  keyContacts: z.string().min(1, "Informe os contatos-chave"),
-  successorNotes: z.string().min(1, "Deixe recomendações para o sucessor"),
+  answers: z.record(z.string(), z.string()),
+  voiceTranscript: z.string().optional(),
 });
 export type ExitInterviewInput = z.infer<typeof exitInterviewSchema>;
+
+const templateQuestionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1, "Informe o texto da pergunta"),
+  placeholder: z.string().default(""),
+});
+
+const templateStepSchema = z.object({
+  title: z.string().min(1, "Informe o título do passo"),
+  description: z.string().default(""),
+  questions: z.array(templateQuestionSchema).min(1, "Adicione ao menos uma pergunta"),
+});
+
+export const saveTemplateSchema = z.object({
+  department: z.string().min(1, "Informe o departamento"),
+  title: z.string().min(1, "Informe o título do questionário"),
+  steps: z.array(templateStepSchema).min(1, "Adicione ao menos um passo"),
+});
+export type SaveTemplateInput = z.infer<typeof saveTemplateSchema>;
 
 export const integrationConfigSchema = z.object({
   provider: z.enum([

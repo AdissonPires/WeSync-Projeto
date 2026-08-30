@@ -1,15 +1,12 @@
+import type { TemplateStep } from "@/lib/interview-template";
+
 interface ExitReportInput {
   employeeName: string;
   role: string;
   department: string;
-  dailyRoutines: string;
-  weeklyRoutines: string;
-  monthlyRoutines: string;
-  projectsPending: string;
-  fileLinks: string;
-  requiredAccess: string;
-  keyContacts: string;
-  successorNotes: string;
+  steps: TemplateStep[];
+  answers: Record<string, string>;
+  voiceTranscript?: string | null;
 }
 
 /**
@@ -59,57 +56,44 @@ async function generateWithOpenAI(input: ExitReportInput): Promise<string> {
 }
 
 function buildPrompt(input: ExitReportInput) {
+  const qa = input.steps
+    .map((step) =>
+      step.questions
+        .map((q) => `${q.label}: ${input.answers[q.id] ?? "(não respondido)"}`)
+        .join("\n")
+    )
+    .join("\n\n");
+
+  const voiceSection = input.voiceTranscript
+    ? `\n\nNotas de voz transcritas (Whisper):\n${input.voiceTranscript}`
+    : "";
+
   return `Gere um SOP (Standard Operating Procedure) em Markdown para o cargo de ${input.role} (${input.department}), com base na entrevista de saída de ${input.employeeName}.
 
-Rotinas diárias: ${input.dailyRoutines}
-Rotinas semanais: ${input.weeklyRoutines}
-Rotinas mensais: ${input.monthlyRoutines}
-Projetos e pendências: ${input.projectsPending}
-Arquivos e acessos necessários: ${input.fileLinks} / ${input.requiredAccess}
-Contatos-chave: ${input.keyContacts}
-Recomendações para o sucessor: ${input.successorNotes}
+${qa}${voiceSection}
 
-Estruture com títulos, subtítulos e listas.`;
+Estruture com títulos, subtítulos e listas, seguindo a ordem das perguntas acima.`;
 }
 
 function generateMock(input: ExitReportInput): string {
+  const sections = input.steps
+    .map((step) => {
+      const body = step.questions
+        .map((q) => `## ${q.label}\n\n${toList(input.answers[q.id] ?? "")}`)
+        .join("\n\n");
+      return `# ${step.title}\n\n${body}`;
+    })
+    .join("\n\n");
+
+  const voiceSection = input.voiceTranscript
+    ? `\n\n## Notas de Voz (transcrição)\n\n${input.voiceTranscript}\n`
+    : "";
+
   return `# Manual de Processos — ${input.role}
 
 > Gerado automaticamente pela IA da WSync a partir da entrevista de saída de **${input.employeeName}** (${input.department}).
 
-## Visão Geral
-
-Este documento consolida o conhecimento operacional de ${input.employeeName} para garantir a continuidade das atividades do cargo de ${input.role} durante e após a transição.
-
-## Rotinas Diárias
-
-${toList(input.dailyRoutines)}
-
-## Rotinas Semanais
-
-${toList(input.weeklyRoutines)}
-
-## Rotinas Mensais
-
-${toList(input.monthlyRoutines)}
-
-## Projetos em Andamento & Pendências
-
-${toList(input.projectsPending)}
-
-## Arquivos e Acessos Necessários
-
-**Arquivos:** ${input.fileLinks}
-
-**Acessos:** ${input.requiredAccess}
-
-## Contatos-Chave
-
-${toList(input.keyContacts)}
-
-## Recomendações para o Sucessor
-
-${input.successorNotes}
+${sections}${voiceSection}
 
 ---
 
@@ -118,10 +102,10 @@ ${input.successorNotes}
 }
 
 function toList(text: string) {
-  return text
+  const lines = text
     .split(/\n+/)
     .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `- ${line}`)
-    .join("\n");
+    .filter(Boolean);
+  if (lines.length === 0) return "_Não respondido._";
+  return lines.map((line) => `- ${line}`).join("\n");
 }

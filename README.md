@@ -16,6 +16,9 @@ O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o co
 - **Portal permanente do ex-colaborador** (`/ex-portal/[accessToken]`) — área self-service sem senha para baixar Informe de Rendimentos e holerites, assinar digitalmente (ou rejeitar, com justificativa) Aviso Prévio e Termo de Quitação, e abrir solicitações ao RH (carta de recomendação, dúvidas).
 - **Módulo Jurídico** (`/legal`): status de assinatura de cada termo, reenvio de link de assinatura com 1 clique, upload de documentos fiscais (PDF) por colaborador e triagem das solicitações recebidas do portal.
 - **Módulo de Compliance/LGPD** (`/compliance`): trilha de auditoria imutável (quem acessou o quê, quando e de qual IP) e ação de anonimização — direito ao esquecimento, substituindo nome/e-mail/CPF por um identificador anônimo e preservando apenas dados estatísticos.
+- **Gravação de voz & transcrição** no portal de entrevista: nota de voz opcional em cada passo (Web MediaRecorder API), transcrita automaticamente via Whisper (`gpt-4o-mini`/`whisper-1`, com fallback mock) e combinada com as respostas digitadas no prompt do SOP.
+- **Templates dinâmicos por departamento** (`/templates`): o RH edita o questionário da entrevista de saída por área (perguntas, placeholders, passos). O portal do colaborador carrega automaticamente o questionário do departamento correspondente, com um padrão genérico como fallback.
+- **Analytics preditivo de turnover** (`/analytics`): consolida entrevistas de saída dos últimos 3/6/12 meses via IA para estimar causas-raiz, sentimento geral e recomendações estratégicas para o CHRO, com gráfico interativo (Recharts).
 - Toasts, modais de confirmação para ações críticas (revogar acessos, cancelar processo, anonimizar dados) e skeletons de carregamento em toda a aplicação.
 
 ## Stack
@@ -74,6 +77,10 @@ npm run dev
 
 Acesse [http://localhost:3000](http://localhost:3000).
 
+> A gravação de voz (Web MediaRecorder API) exige um contexto seguro — funciona em
+> `localhost` e em produção com HTTPS, mas não em HTTP puro — e permissão de microfone
+> concedida pelo navegador.
+
 ## Testando localmente sem Postgres/OpenAI
 
 Para uma simulação 100% local (sem depender de um banco remoto ou de uma chave de API), há uma variante SQLite do schema em `prisma/schema.sqlite.prisma`:
@@ -94,27 +101,32 @@ Para voltar à configuração de produção, restaure `prisma/schema.postgres.pr
 ```
 app/
   (dashboard)/         Rotas autenticadas do painel (dashboard, desligamentos, base de conhecimento,
-                        integrações, jurídico, compliance)
-  interview/[token]/   Portal público da entrevista de saída
+                        templates, analytics, integrações, jurídico, compliance)
+  interview/[token]/   Portal público da entrevista de saída (com gravação de voz)
   ex-portal/[token]/   Portal permanente do ex-colaborador (documentos, assinaturas, solicitações)
   actions/             Server Actions (offboarding, entrevista, conhecimento, integrações, jurídico,
-                        compliance, ex-portal)
+                        compliance, ex-portal, templates, transcrição, analytics)
 components/
   ui/                  Componentes de UI reutilizáveis (estilo shadcn)
   dashboard/           Componentes específicos do painel de RH
-  interview/           Wizard da entrevista pública
+  interview/           Wizard da entrevista pública + gravador de áudio
   knowledge/           Editor/visualizador do manual de conhecimento
   integrations/        Cards, modais e logs de integração
   ex-portal/           Abas do portal do ex-colaborador
   legal/               Tabelas e formulários do módulo jurídico
   compliance/          Trilha de auditoria e anonimização LGPD
-lib/                   Prisma client, validações Zod, geração de relatório IA, helpers
+  templates/           Editor de questionários dinâmicos por departamento
+  analytics/           Gráficos de analytics de turnover
+lib/
+  services/            Serviços de IA (transcrição Whisper, analytics de turnover)
+  ai/                  Geração do manual de processos (SOP)
+  interview-template.ts  Tipos e questionário padrão do template dinâmico
 prisma/                Schema (Postgres + variante SQLite), seed de demonstração
 ```
 
 ## Modelo de dados
 
-`OffboardingSession` é a entidade central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
+`OffboardingSession` é a entidade central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. `ExitInterviewResponse` guarda um snapshot do template usado (`templateSnapshot`) e as respostas dinâmicas (`answers`, JSON por `questionId`), além da transcrição de voz consolidada. `InterviewTemplate` guarda o questionário customizado por departamento — sem um registro, o questionário padrão em `lib/interview-template.ts` é usado automaticamente. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
 
 ## Build de produção
 

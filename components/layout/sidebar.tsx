@@ -11,6 +11,8 @@ import {
   Sparkles,
   Scale,
   ShieldCheck,
+  ClipboardList,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +20,8 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/offboardings", label: "Desligamentos", icon: UserMinus },
   { href: "/knowledge", label: "Base de Conhecimento (IA)", icon: BrainCircuit },
+  { href: "/templates", label: "Templates de Entrevista", icon: ClipboardList },
+  { href: "/analytics", label: "Analytics de Turnover", icon: BarChart3 },
   { href: "/integrations", label: "Integrações de TI", icon: Plug },
   { href: "/legal", label: "Jurídico", icon: Scale },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
