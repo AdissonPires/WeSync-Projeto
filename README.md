@@ -114,7 +114,7 @@ npm run build
 npm run start
 ```
 
-## Roadmap sugerido
+
 
 Este é um MVP funcional de ponta a ponta, mas ainda não está pronto para produção com dados reais de clientes.
 
