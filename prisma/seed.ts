@@ -8,6 +8,11 @@ async function main() {
 
   await prisma.integrationLog.deleteMany();
   await prisma.integration.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.hRRequest.deleteMany();
+  await prisma.legalTerm.deleteMany();
+  await prisma.fiscalDocument.deleteMany();
+  await prisma.exPortalAccess.deleteMany();
   await prisma.accessRevocation.deleteMany();
   await prisma.asset.deleteMany();
   await prisma.pendingTask.deleteMany();
@@ -75,6 +80,7 @@ async function main() {
     data: {
       employeeName: "Rafael Almeida",
       email: "rafael.almeida@acme.com",
+      cpf: "123.456.789-00",
       role: "Engenheiro de Software Sênior",
       department: "Engenharia",
       exitDate: new Date("2026-09-02"),
@@ -141,6 +147,53 @@ async function main() {
     },
   });
 
+  const rafaelPortal = await prisma.exPortalAccess.create({
+    data: { offboardingSessionId: rafael.id },
+  });
+
+  await prisma.legalTerm.create({
+    data: {
+      offboardingSessionId: rafael.id,
+      type: "AVISO_PREVIO",
+      title: "Aviso Prévio Indenizado",
+      content: `# Aviso Prévio Indenizado\n\nA empresa **Acme Corp** comunica a ${rafael.employeeName} o desligamento do cargo de ${rafael.role}, com aviso prévio indenizado, nos termos da legislação trabalhista vigente.\n\n- Data de desligamento: 02/09/2026\n- Modalidade: Indenizado\n- Verbas rescisórias a serem pagas em até 10 dias corridos\n\nAo assinar este termo, o colaborador declara estar ciente das condições acima.`,
+      status: "PENDING",
+    },
+  });
+
+  await prisma.legalTerm.create({
+    data: {
+      offboardingSessionId: rafael.id,
+      type: "TERMO_QUITACAO",
+      title: "Termo de Quitação de Equipamentos e Acessos",
+      content: `# Termo de Quitação\n\nDeclaro, para os devidos fins, que devolvi (ou me comprometo a devolver) todos os equipamentos e acessos corporativos recebidos durante o vínculo com a **Acme Corp**, incluindo notebook, crachá e credenciais de sistemas internos.\n\nA não devolução dos itens listados poderá acarretar desconto no valor equivalente na rescisão, conforme previsto em contrato.`,
+      status: "PENDING",
+    },
+  });
+
+  await prisma.fiscalDocument.create({
+    data: {
+      offboardingSessionId: rafael.id,
+      type: "INCOME_REPORT",
+      title: "Informe de Rendimentos 2025",
+      year: 2025,
+      fileName: "informe-rendimentos-2025.pdf",
+      mimeType: "application/pdf",
+      content: Buffer.from(
+        "Documento de demonstração — Informe de Rendimentos 2025 (WSync seed data)."
+      ),
+    },
+  });
+
+  await prisma.hRRequest.create({
+    data: {
+      offboardingSessionId: rafael.id,
+      type: "RECOMMENDATION_LETTER",
+      message: "Poderiam emitir uma carta de recomendação para o meu novo processo seletivo?",
+      status: "OPEN",
+    },
+  });
+
   // --- Session 2: AI capture still pending, valid interview link ----
   const marina = await prisma.offboardingSession.create({
     data: {
@@ -177,8 +230,38 @@ async function main() {
     },
   });
 
+  await prisma.auditLog.createMany({
+    data: [
+      {
+        offboardingSessionId: rafael.id,
+        actor: "RH — Camila Duarte",
+        action: "view_sensitive_data",
+        targetLabel: rafael.employeeName,
+        ipAddress: "187.45.12.90",
+        details: "Visualizou dados do colaborador na sessão de offboarding.",
+      },
+      {
+        offboardingSessionId: rafael.id,
+        actor: "sistema",
+        action: "resend_signature_request",
+        targetLabel: "Aviso Prévio Indenizado",
+        ipAddress: "10.0.0.4",
+        details: `Link de assinatura reenviado para ${rafael.email}.`,
+      },
+      {
+        offboardingSessionId: marina.id,
+        actor: "sistema",
+        action: "interview_link_generated",
+        targetLabel: marina.employeeName,
+        ipAddress: "10.0.0.4",
+        details: "Link de entrevista de saída gerado e enviado por e-mail.",
+      },
+    ],
+  });
+
   console.log("\nSeed concluído.");
   console.log(`Link de entrevista pendente (Marina Costa): /interview/${marinaToken.token}`);
+  console.log(`Portal do ex-colaborador (Rafael Almeida): /ex-portal/${rafaelPortal.accessToken}`);
 }
 
 function omit<T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {

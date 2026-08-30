@@ -31,6 +31,7 @@ export const integrationConfigSchema = z.object({
     "GITHUB",
     "OKTA",
     "NOTION",
+    "FIGMA",
   ]),
   config: z.record(z.string(), z.string().min(1, "Campo obrigatório")),
 });
@@ -45,4 +46,31 @@ export const addAssetSchema = z.object({
   offboardingSessionId: z.string().min(1),
   type: z.enum(["NOTEBOOK", "MONITOR", "PERIPHERAL", "BADGE"]),
   serialNumber: z.string().min(1, "Informe o número de série ou identificador"),
+});
+
+export const hrRequestSchema = z.object({
+  accessToken: z.string().min(1),
+  type: z.enum(["RECOMMENDATION_LETTER", "GENERAL_QUESTION"]),
+  message: z.string().min(5, "Descreva sua solicitação com mais detalhes"),
+});
+export type HRRequestInput = z.infer<typeof hrRequestSchema>;
+
+export const signLegalTermSchema = z.object({
+  accessToken: z.string().min(1),
+  legalTermId: z.string().min(1),
+  signerName: z.string().min(2, "Informe seu nome completo para assinar"),
+  consent: z
+    .boolean()
+    .refine((v) => v === true, "Você precisa confirmar que leu e concorda com o termo"),
+});
+export type SignLegalTermInput = z.infer<typeof signLegalTermSchema>;
+
+export const rejectLegalTermSchema = z.object({
+  accessToken: z.string().min(1),
+  legalTermId: z.string().min(1),
+  reason: z.string().min(5, "Explique o motivo da rejeição"),
+});
+
+export const resolveHRRequestSchema = z.object({
+  id: z.string().min(1),
 });

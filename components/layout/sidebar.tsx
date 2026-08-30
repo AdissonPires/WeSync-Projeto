@@ -9,6 +9,8 @@ import {
   Plug,
   Settings,
   Sparkles,
+  Scale,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +19,8 @@ const navItems = [
   { href: "/offboardings", label: "Desligamentos", icon: UserMinus },
   { href: "/knowledge", label: "Base de Conhecimento (IA)", icon: BrainCircuit },
   { href: "/integrations", label: "Integrações de TI", icon: Plug },
+  { href: "/legal", label: "Jurídico", icon: Scale },
+  { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/settings", label: "Configurações", icon: Settings },
 ];
 

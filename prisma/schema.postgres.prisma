@@ -56,14 +56,42 @@ enum LogStatus {
   ERROR
 }
 
+enum FiscalDocumentType {
+  INCOME_REPORT
+  PAYSLIP
+}
+
+enum LegalTermType {
+  AVISO_PREVIO
+  TERMO_QUITACAO
+}
+
+enum LegalTermStatus {
+  PENDING
+  SIGNED
+  REJECTED
+}
+
+enum HRRequestType {
+  RECOMMENDATION_LETTER
+  GENERAL_QUESTION
+}
+
+enum HRRequestStatus {
+  OPEN
+  RESOLVED
+}
+
 model OffboardingSession {
   id           String            @id @default(cuid())
   employeeName String
   email        String
+  cpf          String?
   role         String
   department   String
   exitDate     DateTime
   status       OffboardingStatus @default(AI_CAPTURE)
+  anonymizedAt DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -73,6 +101,11 @@ model OffboardingSession {
   assets            Asset[]
   tasks             PendingTask[]
   accessRevocations AccessRevocation[]
+  exPortalAccess    ExPortalAccess?
+  fiscalDocuments   FiscalDocument[]
+  legalTerms        LegalTerm[]
+  hrRequests        HRRequest[]
+  auditLogs         AuditLog[]
 }
 
 model InterviewToken {
@@ -177,4 +210,75 @@ model AccessRevocation {
   revoked   Boolean             @default(false)
   revokedAt DateTime?
   createdAt DateTime            @default(now())
+}
+
+/// Acesso permanente (self-service) do ex-colaborador ao seu próprio portal.
+model ExPortalAccess {
+  id                   String             @id @default(cuid())
+  accessToken          String             @unique @default(cuid())
+  offboardingSessionId String             @unique
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model FiscalDocument {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  type       FiscalDocumentType
+  title      String
+  year       Int?
+  fileName   String
+  mimeType   String
+  content    Bytes
+  uploadedAt DateTime           @default(now())
+}
+
+model LegalTerm {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  type            LegalTermType
+  title           String
+  content         String          @db.Text
+  status          LegalTermStatus @default(PENDING)
+  signerName      String?
+  signerIp        String?
+  signedAt        DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model HRRequest {
+  id                   String             @id @default(cuid())
+  offboardingSessionId String
+  offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
+
+  type       HRRequestType
+  message    String          @db.Text
+  status     HRRequestStatus @default(OPEN)
+  createdAt  DateTime        @default(now())
+  resolvedAt DateTime?
+}
+
+/// Trilha de auditoria imutável — nunca é editada ou apagada pela aplicação.
+model AuditLog {
+  id                   String              @id @default(cuid())
+  offboardingSessionId String?
+  offboardingSession   OffboardingSession? @relation(fields: [offboardingSessionId], references: [id], onDelete: SetNull)
+
+  actor       String
+  action      String
+  targetLabel String
+  ipAddress   String?
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([offboardingSessionId])
 }

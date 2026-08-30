@@ -13,7 +13,10 @@ O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o co
 - **Base de Conhecimento**: visualização, edição, aprovação pelo gestor, exportação em PDF e cópia em Markdown dos manuais gerados.
 - **Gestão de ativos físicos**: checklist de notebooks, monitores, periféricos e crachás por sessão, com status de devolução.
 - **Central de Integrações**: configuração de credenciais por provedor (Google Workspace, Microsoft Entra ID, Slack, GitHub, Okta, Notion, Figma), teste de conexão simulado e histórico de execuções.
-- Toasts, modais de confirmação para ações críticas (revogar acessos, cancelar processo) e skeletons de carregamento em toda a aplicação.
+- **Portal permanente do ex-colaborador** (`/ex-portal/[accessToken]`) — área self-service sem senha para baixar Informe de Rendimentos e holerites, assinar digitalmente (ou rejeitar, com justificativa) Aviso Prévio e Termo de Quitação, e abrir solicitações ao RH (carta de recomendação, dúvidas).
+- **Módulo Jurídico** (`/legal`): status de assinatura de cada termo, reenvio de link de assinatura com 1 clique, upload de documentos fiscais (PDF) por colaborador e triagem das solicitações recebidas do portal.
+- **Módulo de Compliance/LGPD** (`/compliance`): trilha de auditoria imutável (quem acessou o quê, quando e de qual IP) e ação de anonimização — direito ao esquecimento, substituindo nome/e-mail/CPF por um identificador anônimo e preservando apenas dados estatísticos.
+- Toasts, modais de confirmação para ações críticas (revogar acessos, cancelar processo, anonimizar dados) e skeletons de carregamento em toda a aplicação.
 
 ## Stack
 
@@ -90,22 +93,28 @@ Para voltar à configuração de produção, restaure `prisma/schema.postgres.pr
 
 ```
 app/
-  (dashboard)/         Rotas autenticadas do painel (dashboard, desligamentos, base de conhecimento, integrações)
+  (dashboard)/         Rotas autenticadas do painel (dashboard, desligamentos, base de conhecimento,
+                        integrações, jurídico, compliance)
   interview/[token]/   Portal público da entrevista de saída
-  actions/             Server Actions (offboarding, entrevista, conhecimento, integrações)
+  ex-portal/[token]/   Portal permanente do ex-colaborador (documentos, assinaturas, solicitações)
+  actions/             Server Actions (offboarding, entrevista, conhecimento, integrações, jurídico,
+                        compliance, ex-portal)
 components/
   ui/                  Componentes de UI reutilizáveis (estilo shadcn)
   dashboard/           Componentes específicos do painel de RH
   interview/           Wizard da entrevista pública
   knowledge/           Editor/visualizador do manual de conhecimento
   integrations/        Cards, modais e logs de integração
+  ex-portal/           Abas do portal do ex-colaborador
+  legal/               Tabelas e formulários do módulo jurídico
+  compliance/          Trilha de auditoria e anonimização LGPD
 lib/                   Prisma client, validações Zod, geração de relatório IA, helpers
 prisma/                Schema (Postgres + variante SQLite), seed de demonstração
 ```
 
 ## Modelo de dados
 
-`OffboardingSession` é a entidade central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]` e `AccessRevocation[]`. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor.
+`OffboardingSession` é a entidade central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
 
 ## Build de produção
 
@@ -117,4 +126,3 @@ npm run start
 
 
 Este é um MVP funcional de ponta a ponta, mas ainda não está pronto para produção com dados reais de clientes.
-
