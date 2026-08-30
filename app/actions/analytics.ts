@@ -3,13 +3,20 @@
 import { prisma } from "@/lib/prisma";
 import { analyzeTurnover, type TurnoverAnalysis, type TurnoverEntry } from "@/lib/services/ai-analytics";
 import type { TemplateStep } from "@/lib/interview-template";
+import { getSessionUser } from "@/lib/auth/session";
 
 export async function getTurnoverAnalysis(periodMonths: 3 | 6 | 12): Promise<TurnoverAnalysis> {
+  const user = await getSessionUser();
+  if (!user) {
+    return { sessionCount: 0, reasons: [], sentiment: { label: "—", summary: "Não autenticado." }, recommendations: [] };
+  }
+
   const since = new Date();
   since.setMonth(since.getMonth() - periodMonths);
 
   const sessions = await prisma.offboardingSession.findMany({
     where: {
+      orgId: user.orgId,
       exitDate: { gte: since },
       anonymizedAt: null,
     },

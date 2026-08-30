@@ -3,17 +3,23 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
-import { createOffboardingSchema } from "@/lib/validations";
-import { addAssetSchema } from "@/lib/validations";
+import { createOffboardingSchema, addAssetSchema } from "@/lib/validations";
+import { getSessionUser } from "@/lib/auth/session";
 
 const DEFAULT_ASSETS: { type: "NOTEBOOK" | "MONITOR" | "PERIPHERAL" | "BADGE"; serialNumber: string }[] = [
   { type: "NOTEBOOK", serialNumber: "A definir" },
   { type: "BADGE", serialNumber: "Crachá de acesso" },
 ];
 
+const CAN_MANAGE_OFFBOARDINGS = ["ADMIN", "IT_ADMIN", "HR_MANAGER"];
+
 export async function createOffboarding(
   input: unknown
 ): Promise<ActionResult<{ sessionId: string; interviewToken: string }>> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!CAN_MANAGE_OFFBOARDINGS.includes(user.role)) return fail("Sem permissão para esta ação.");
+
   const parsed = createOffboardingSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
@@ -24,6 +30,7 @@ export async function createOffboarding(
 
     const session = await prisma.offboardingSession.create({
       data: {
+        orgId: user.orgId,
         employeeName,
         email,
         role,
@@ -67,11 +74,17 @@ export async function createOffboarding(
 }
 
 export async function cancelOffboarding(sessionId: string): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!CAN_MANAGE_OFFBOARDINGS.includes(user.role)) return fail("Sem permissão para esta ação.");
+
   try {
-    await prisma.offboardingSession.update({
-      where: { id: sessionId },
+    const result = await prisma.offboardingSession.updateMany({
+      where: { id: sessionId, orgId: user.orgId },
       data: { status: "CANCELLED" },
     });
+    if (result.count === 0) return fail("Sessão não encontrada.");
+
     revalidatePath("/offboardings");
     revalidatePath(`/offboardings/${sessionId}`);
     revalidatePath("/");
@@ -86,13 +99,21 @@ export async function updateAssetStatus(
   assetId: string,
   status: "RETURNED" | "DAMAGED" | "PENDING_RETURN"
 ): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+
   try {
-    const asset = await prisma.asset.update({
-      where: { id: assetId },
+    const result = await prisma.asset.updateMany({
+      where: { id: assetId, offboardingSession: { orgId: user.orgId } },
       data: { status },
     });
-    revalidatePath(`/offboardings/${asset.offboardingSessionId}`);
-    revalidatePath("/offboardings");
+    if (result.count === 0) return fail("Ativo não encontrado.");
+
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (asset) {
+      revalidatePath(`/offboardings/${asset.offboardingSessionId}`);
+      revalidatePath("/offboardings");
+    }
     return ok();
   } catch (error) {
     console.error(error);
@@ -101,11 +122,20 @@ export async function updateAssetStatus(
 }
 
 export async function addAsset(input: unknown): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+
   const parsed = addAssetSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
   }
   try {
+    const session = await prisma.offboardingSession.findFirst({
+      where: { id: parsed.data.offboardingSessionId, orgId: user.orgId },
+      select: { id: true },
+    });
+    if (!session) return fail("Sessão não encontrada.");
+
     await prisma.asset.create({ data: parsed.data });
     revalidatePath(`/offboardings/${parsed.data.offboardingSessionId}`);
     return ok();
@@ -116,8 +146,19 @@ export async function addAsset(input: unknown): Promise<ActionResult> {
 }
 
 export async function toggleTask(taskId: string, done: boolean): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+
   try {
-    await prisma.pendingTask.update({ where: { id: taskId }, data: { done } });
+    const result = await prisma.pendingTask.updateMany({
+      where: {
+        id: taskId,
+        OR: [{ offboardingSession: { orgId: user.orgId } }, { offboardingSessionId: null }],
+      },
+      data: { done },
+    });
+    if (result.count === 0) return fail("Tarefa não encontrada.");
+
     revalidatePath("/");
     return ok();
   } catch (error) {

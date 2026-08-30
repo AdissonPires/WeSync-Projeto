@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { getClientIp } from "@/lib/request-info";
+import { getSessionUser } from "@/lib/auth/session";
 
 function anonymizedHash(sessionId: string) {
   let hash = 0;
@@ -14,8 +15,16 @@ function anonymizedHash(sessionId: string) {
 }
 
 export async function anonymizeSession(sessionId: string): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!["ADMIN", "IT_ADMIN", "HR_MANAGER"].includes(user.role)) {
+    return fail("Sem permissão para anonimizar dados.");
+  }
+
   try {
-    const session = await prisma.offboardingSession.findUnique({ where: { id: sessionId } });
+    const session = await prisma.offboardingSession.findFirst({
+      where: { id: sessionId, orgId: user.orgId },
+    });
     if (!session) return fail("Sessão não encontrada.");
     if (session.anonymizedAt) return fail("Esta sessão já foi anonimizada.");
 
@@ -34,8 +43,9 @@ export async function anonymizeSession(sessionId: string): Promise<ActionResult>
       }),
       prisma.auditLog.create({
         data: {
+          orgId: user.orgId,
           offboardingSessionId: sessionId,
-          actor: "RH",
+          actor: user.name ?? user.email,
           action: "anonymize_session",
           targetLabel: tag,
           ipAddress: ip,

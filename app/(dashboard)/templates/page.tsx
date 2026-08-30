@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ClipboardList, Pencil } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,13 +7,21 @@ import { Button } from "@/components/ui/button";
 import { TemplateEditorDialog } from "@/components/templates/template-editor-dialog";
 import { DEFAULT_TEMPLATE_STEPS, DEFAULT_TEMPLATE_TITLE, totalQuestions } from "@/lib/interview-template";
 import type { TemplateStep } from "@/lib/interview-template";
+import { getSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function TemplatesPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const [sessions, templates] = await Promise.all([
-    prisma.offboardingSession.findMany({ select: { department: true }, distinct: ["department"] }),
-    prisma.interviewTemplate.findMany(),
+    prisma.offboardingSession.findMany({
+      where: { orgId: user.orgId },
+      select: { department: true },
+      distinct: ["department"],
+    }),
+    prisma.interviewTemplate.findMany({ where: { orgId: user.orgId } }),
   ]);
 
   const departmentSet = new Set<string>(sessions.map((s) => s.department));

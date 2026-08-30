@@ -34,10 +34,13 @@ export async function getExPortalData(accessToken: string) {
 
 export type ExPortalData = NonNullable<Awaited<ReturnType<typeof getExPortalData>>>;
 
-async function resolveSessionId(accessToken: string) {
-  const access = await prisma.exPortalAccess.findUnique({ where: { accessToken } });
+async function resolveSession(accessToken: string) {
+  const access = await prisma.exPortalAccess.findUnique({
+    where: { accessToken },
+    include: { offboardingSession: { select: { id: true, orgId: true } } },
+  });
   if (!access || !access.active) return null;
-  return access.offboardingSessionId;
+  return access.offboardingSession;
 }
 
 export async function submitHRRequest(input: unknown): Promise<ActionResult> {
@@ -46,12 +49,12 @@ export async function submitHRRequest(input: unknown): Promise<ActionResult> {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
   }
   try {
-    const sessionId = await resolveSessionId(parsed.data.accessToken);
-    if (!sessionId) return fail("Acesso inválido ou expirado.");
+    const session = await resolveSession(parsed.data.accessToken);
+    if (!session) return fail("Acesso inválido ou expirado.");
 
     await prisma.hRRequest.create({
       data: {
-        offboardingSessionId: sessionId,
+        offboardingSessionId: session.id,
         type: parsed.data.type,
         message: parsed.data.message,
       },
@@ -71,11 +74,11 @@ export async function signLegalTerm(input: unknown): Promise<ActionResult> {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
   }
   try {
-    const sessionId = await resolveSessionId(parsed.data.accessToken);
-    if (!sessionId) return fail("Acesso inválido ou expirado.");
+    const session = await resolveSession(parsed.data.accessToken);
+    if (!session) return fail("Acesso inválido ou expirado.");
 
     const term = await prisma.legalTerm.findFirst({
-      where: { id: parsed.data.legalTermId, offboardingSessionId: sessionId },
+      where: { id: parsed.data.legalTermId, offboardingSessionId: session.id },
     });
     if (!term) return fail("Termo não encontrado.");
     if (term.status !== "PENDING") return fail("Este termo já foi processado anteriormente.");
@@ -94,7 +97,8 @@ export async function signLegalTerm(input: unknown): Promise<ActionResult> {
       }),
       prisma.auditLog.create({
         data: {
-          offboardingSessionId: sessionId,
+          orgId: session.orgId,
+          offboardingSessionId: session.id,
           actor: parsed.data.signerName,
           action: "sign_legal_term",
           targetLabel: term.title,
@@ -118,11 +122,11 @@ export async function rejectLegalTerm(input: unknown): Promise<ActionResult> {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
   }
   try {
-    const sessionId = await resolveSessionId(parsed.data.accessToken);
-    if (!sessionId) return fail("Acesso inválido ou expirado.");
+    const session = await resolveSession(parsed.data.accessToken);
+    if (!session) return fail("Acesso inválido ou expirado.");
 
     const term = await prisma.legalTerm.findFirst({
-      where: { id: parsed.data.legalTermId, offboardingSessionId: sessionId },
+      where: { id: parsed.data.legalTermId, offboardingSessionId: session.id },
     });
     if (!term) return fail("Termo não encontrado.");
     if (term.status !== "PENDING") return fail("Este termo já foi processado anteriormente.");
@@ -136,7 +140,8 @@ export async function rejectLegalTerm(input: unknown): Promise<ActionResult> {
       }),
       prisma.auditLog.create({
         data: {
-          offboardingSessionId: sessionId,
+          orgId: session.orgId,
+          offboardingSessionId: session.id,
           actor: "ex-colaborador",
           action: "reject_legal_term",
           targetLabel: term.title,

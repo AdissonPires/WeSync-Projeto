@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import { Bell, Search, ShieldAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -12,6 +11,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { UserMenu } from "@/components/layout/user-menu";
+import type { SessionUser } from "@/lib/auth/session";
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
@@ -34,7 +35,7 @@ function resolveTitle(pathname: string) {
   return match ? titles[match] : "WSync";
 }
 
-export function Header() {
+export function Header({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   const title = resolveTitle(pathname);
 
@@ -80,26 +81,7 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-lg border border-brand-border px-2 py-1 hover:bg-brand-card">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback>PN</AvatarFallback>
-              </Avatar>
-              <span className="hidden text-sm text-brand-text sm:inline">
-                Pedro Neves
-              </span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>HR Admin</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Meu perfil</DropdownMenuItem>
-            <DropdownMenuItem>Configurações da conta</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-400">Sair</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserMenu user={user} />
       </div>
     </header>
   );

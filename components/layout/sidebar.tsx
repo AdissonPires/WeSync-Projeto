@@ -15,21 +15,23 @@ import {
   BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { SessionUser } from "@/lib/auth/session";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/offboardings", label: "Desligamentos", icon: UserMinus },
-  { href: "/knowledge", label: "Base de Conhecimento (IA)", icon: BrainCircuit },
-  { href: "/templates", label: "Templates de Entrevista", icon: ClipboardList },
-  { href: "/analytics", label: "Analytics de Turnover", icon: BarChart3 },
-  { href: "/integrations", label: "Integrações de TI", icon: Plug },
-  { href: "/legal", label: "Jurídico", icon: Scale },
-  { href: "/compliance", label: "Compliance", icon: ShieldCheck },
-  { href: "/settings", label: "Configurações", icon: Settings },
-];
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/offboardings", label: "Desligamentos", icon: UserMinus, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/knowledge", label: "Base de Conhecimento (IA)", icon: BrainCircuit, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/templates", label: "Templates de Entrevista", icon: ClipboardList, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/analytics", label: "Analytics de Turnover", icon: BarChart3, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/integrations", label: "Integrações de TI", icon: Plug, roles: ["ADMIN", "IT_ADMIN"] },
+  { href: "/legal", label: "Jurídico", icon: Scale, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/compliance", label: "Compliance", icon: ShieldCheck, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+  { href: "/settings", label: "Configurações", icon: Settings, roles: ["ADMIN", "IT_ADMIN", "HR_MANAGER"] },
+] as const;
 
-export function Sidebar() {
+export function Sidebar({ role, orgName }: { role: SessionUser["role"]; orgName: string }) {
   const pathname = usePathname();
+  const items = navItems.filter((item) => (item.roles as readonly string[]).includes(role));
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-brand-border bg-brand-card/40 md:flex">
@@ -43,7 +45,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const active =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -67,7 +69,7 @@ export function Sidebar() {
 
       <div className="border-t border-brand-border px-4 py-4">
         <div className="rounded-lg border border-brand-border bg-brand-bg px-3 py-3">
-          <p className="text-xs font-medium text-brand-text">wedpp · Acme Corp</p>
+          <p className="text-xs font-medium text-brand-text">wedpp · {orgName}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-brand-muted">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
             Plano Business — Ativo

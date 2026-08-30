@@ -42,7 +42,10 @@ export async function getInterviewByToken(token: string): Promise<InterviewToken
     return { ...base, valid: false, reason: "expired" };
   }
 
-  const template = await getTemplateForDepartment(interviewToken.offboardingSession.department);
+  const template = await getTemplateForDepartment(
+    interviewToken.offboardingSession.orgId,
+    interviewToken.offboardingSession.department
+  );
 
   return { ...base, valid: true, templateTitle: template.title, steps: template.steps };
 }
@@ -66,7 +69,7 @@ export async function submitEmployeeExitInterview(input: unknown): Promise<Actio
     if (interviewToken.expiresAt < new Date()) return fail("Este link de entrevista expirou.");
 
     const session = interviewToken.offboardingSession;
-    const template = await getTemplateForDepartment(session.department);
+    const template = await getTemplateForDepartment(session.orgId, session.department);
 
     const missing = template.steps
       .flatMap((step) => step.questions)

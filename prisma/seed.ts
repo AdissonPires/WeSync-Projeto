@@ -1,13 +1,15 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { generateExitReport } from "../lib/ai/generate-exit-report";
 
 const prisma = new PrismaClient();
+
+const ORG_ID = "org_acme_demo";
 
 async function main() {
   console.log("Seeding WSync demo data…");
 
   await prisma.integrationLog.deleteMany();
-  await prisma.integration.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.hRRequest.deleteMany();
   await prisma.legalTerm.deleteMany();
@@ -21,6 +23,28 @@ async function main() {
   await prisma.interviewToken.deleteMany();
   await prisma.offboardingSession.deleteMany();
   await prisma.interviewTemplate.deleteMany();
+  await prisma.integration.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.user.deleteMany();
+
+  // --- Organização & usuário administrador padrão -------------------
+  await prisma.organization.upsert({
+    where: { id: ORG_ID },
+    update: { name: "Acme Corp" },
+    create: { id: ORG_ID, name: "Acme Corp" },
+  });
+
+  const adminPasswordHash = await bcrypt.hash("admin123", 10);
+  await prisma.user.create({
+    data: {
+      orgId: ORG_ID,
+      name: "Admin Acme",
+      email: "admin@acme.com",
+      passwordHash: adminPasswordHash,
+      role: "ADMIN",
+    },
+  });
 
   // --- Interview templates (questionários dinâmicos por departamento) ---
   const engenhariaSteps = [
@@ -107,15 +131,26 @@ async function main() {
   ];
 
   await prisma.interviewTemplate.create({
-    data: { department: "Engenharia", title: "Questionário Técnico — Engenharia", steps: engenhariaSteps },
+    data: {
+      orgId: ORG_ID,
+      department: "Engenharia",
+      title: "Questionário Técnico — Engenharia",
+      steps: engenhariaSteps,
+    },
   });
   await prisma.interviewTemplate.create({
-    data: { department: "Vendas", title: "Questionário Comercial — Vendas", steps: vendasSteps },
+    data: {
+      orgId: ORG_ID,
+      department: "Vendas",
+      title: "Questionário Comercial — Vendas",
+      steps: vendasSteps,
+    },
   });
 
   // --- Integrations -------------------------------------------------
   const googleIntegration = await prisma.integration.create({
     data: {
+      orgId: ORG_ID,
       provider: "GOOGLE_WORKSPACE",
       status: "CONNECTED",
       config: { clientId: "demo-client-id.apps.googleusercontent.com" },
@@ -124,6 +159,7 @@ async function main() {
   });
   const slackIntegration = await prisma.integration.create({
     data: {
+      orgId: ORG_ID,
       provider: "SLACK",
       status: "CONNECTED",
       config: { apiToken: "xoxb-demo-token" },
@@ -131,12 +167,12 @@ async function main() {
     },
   });
   await prisma.integration.create({
-    data: { provider: "GITHUB", status: "CONNECTED", config: { apiToken: "ghp_demo" } },
+    data: { orgId: ORG_ID, provider: "GITHUB", status: "CONNECTED", config: { apiToken: "ghp_demo" } },
   });
-  await prisma.integration.create({ data: { provider: "OKTA", status: "PENDING" } });
-  await prisma.integration.create({ data: { provider: "NOTION", status: "PENDING" } });
-  await prisma.integration.create({ data: { provider: "MICROSOFT_ENTRA", status: "PENDING" } });
-  await prisma.integration.create({ data: { provider: "FIGMA", status: "PENDING" } });
+  await prisma.integration.create({ data: { orgId: ORG_ID, provider: "OKTA", status: "PENDING" } });
+  await prisma.integration.create({ data: { orgId: ORG_ID, provider: "NOTION", status: "PENDING" } });
+  await prisma.integration.create({ data: { orgId: ORG_ID, provider: "MICROSOFT_ENTRA", status: "PENDING" } });
+  await prisma.integration.create({ data: { orgId: ORG_ID, provider: "FIGMA", status: "PENDING" } });
 
   await prisma.integrationLog.createMany({
     data: [
@@ -170,6 +206,7 @@ async function main() {
   // --- Session 1: fully completed with approved knowledge doc -------
   const rafael = await prisma.offboardingSession.create({
     data: {
+      orgId: ORG_ID,
       employeeName: "Rafael Almeida",
       email: "rafael.almeida@acme.com",
       cpf: "123.456.789-00",
@@ -300,6 +337,7 @@ async function main() {
   // --- Session 2: AI capture still pending, valid interview link ----
   const marina = await prisma.offboardingSession.create({
     data: {
+      orgId: ORG_ID,
       employeeName: "Marina Costa",
       email: "marina.costa@acme.com",
       role: "Gerente de Produto",
@@ -336,6 +374,7 @@ async function main() {
   await prisma.auditLog.createMany({
     data: [
       {
+        orgId: ORG_ID,
         offboardingSessionId: rafael.id,
         actor: "RH — Camila Duarte",
         action: "view_sensitive_data",
@@ -344,6 +383,7 @@ async function main() {
         details: "Visualizou dados do colaborador na sessão de offboarding.",
       },
       {
+        orgId: ORG_ID,
         offboardingSessionId: rafael.id,
         actor: "sistema",
         action: "resend_signature_request",
@@ -352,6 +392,7 @@ async function main() {
         details: `Link de assinatura reenviado para ${rafael.email}.`,
       },
       {
+        orgId: ORG_ID,
         offboardingSessionId: marina.id,
         actor: "sistema",
         action: "interview_link_generated",
@@ -363,6 +404,7 @@ async function main() {
   });
 
   console.log("\nSeed concluído.");
+  console.log("Login administrador: admin@acme.com / admin123");
   console.log(`Link de entrevista pendente (Marina Costa): /interview/${marinaToken.token}`);
   console.log(`Portal do ex-colaborador (Rafael Almeida): /ex-portal/${rafaelPortal.accessToken}`);
 }

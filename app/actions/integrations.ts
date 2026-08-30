@@ -5,17 +5,23 @@ import { prisma } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { integrationConfigSchema } from "@/lib/validations";
 import type { IntegrationProvider } from "@prisma/client";
+import { getSessionUser, canManageIntegrations } from "@/lib/auth/session";
 
 export async function saveIntegrationConfig(input: unknown): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!canManageIntegrations(user.role)) return fail("Sem permissão para gerenciar integrações.");
+
   const parsed = integrationConfigSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
   }
   try {
     await prisma.integration.upsert({
-      where: { provider: parsed.data.provider },
+      where: { orgId_provider: { orgId: user.orgId, provider: parsed.data.provider } },
       update: { config: parsed.data.config, status: "PENDING" },
       create: {
+        orgId: user.orgId,
         provider: parsed.data.provider,
         config: parsed.data.config,
         status: "PENDING",
@@ -32,8 +38,14 @@ export async function saveIntegrationConfig(input: unknown): Promise<ActionResul
 export async function testIntegrationConnection(
   provider: IntegrationProvider
 ): Promise<ActionResult<{ connected: boolean }>> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!canManageIntegrations(user.role)) return fail("Sem permissão para gerenciar integrações.");
+
   try {
-    const integration = await prisma.integration.findUnique({ where: { provider } });
+    const integration = await prisma.integration.findUnique({
+      where: { orgId_provider: { orgId: user.orgId, provider } },
+    });
     if (!integration || !integration.config) {
       return fail("Configure as credenciais antes de testar a conexão.");
     }
@@ -44,7 +56,7 @@ export async function testIntegrationConnection(
 
     await prisma.$transaction([
       prisma.integration.update({
-        where: { provider },
+        where: { id: integration.id },
         data: {
           status: success ? "CONNECTED" : "ERROR",
           lastTestedAt: new Date(),
@@ -73,14 +85,24 @@ export async function testIntegrationConnection(
 }
 
 export async function revokeAllAccess(offboardingSessionId: string): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return fail("Não autenticado.");
+  if (!canManageIntegrations(user.role)) return fail("Sem permissão para revogar acessos.");
+
   try {
+    const session = await prisma.offboardingSession.findFirst({
+      where: { id: offboardingSessionId, orgId: user.orgId },
+      select: { id: true },
+    });
+    if (!session) return fail("Sessão não encontrada.");
+
     const revocations = await prisma.accessRevocation.findMany({
       where: { offboardingSessionId, revoked: false },
     });
 
     for (const revocation of revocations) {
       const integration = await prisma.integration.findUnique({
-        where: { provider: revocation.provider },
+        where: { orgId_provider: { orgId: user.orgId, provider: revocation.provider } },
       });
 
       await prisma.accessRevocation.update({
@@ -102,8 +124,8 @@ export async function revokeAllAccess(offboardingSessionId: string): Promise<Act
       }
     }
 
-    const session = await prisma.offboardingSession.update({
-      where: { id: offboardingSessionId },
+    await prisma.offboardingSession.update({
+      where: { id: session.id },
       data: { status: "COMPLETED" },
     });
 

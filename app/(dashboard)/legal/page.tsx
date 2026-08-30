@@ -1,19 +1,29 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LegalTermsTable } from "@/components/legal/legal-terms-table";
 import { FiscalUploadForm } from "@/components/legal/fiscal-upload-form";
 import { HRRequestsTable } from "@/components/legal/hr-requests-table";
+import { getSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function LegalPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const [terms, sessions, requests] = await Promise.all([
     prisma.legalTerm.findMany({
+      where: { offboardingSession: { orgId: user.orgId } },
       include: { offboardingSession: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.offboardingSession.findMany({ orderBy: { employeeName: "asc" } }),
+    prisma.offboardingSession.findMany({
+      where: { orgId: user.orgId },
+      orderBy: { employeeName: "asc" },
+    }),
     prisma.hRRequest.findMany({
+      where: { offboardingSession: { orgId: user.orgId } },
       include: { offboardingSession: true },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     }),

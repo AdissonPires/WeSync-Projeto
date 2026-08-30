@@ -1,9 +1,11 @@
+import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AuditLogTable } from "@/components/compliance/audit-log-table";
 import { AnonymizeButton } from "@/components/compliance/anonymize-button";
+import { getSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +16,19 @@ function formatDate(date: Date) {
 }
 
 export default async function CompliancePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const [sessions, logs] = await Promise.all([
-    prisma.offboardingSession.findMany({ orderBy: { exitDate: "desc" } }),
-    prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.offboardingSession.findMany({
+      where: { orgId: user.orgId },
+      orderBy: { exitDate: "desc" },
+    }),
+    prisma.auditLog.findMany({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
 
   return (

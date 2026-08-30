@@ -1,16 +1,28 @@
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { getSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getSessionUser();
+  // O middleware já bloqueia isso — este redirect é uma segunda camada de defesa.
+  if (!user) redirect("/login");
+
+  const org = await prisma.organization.findUnique({
+    where: { id: user.orgId },
+    select: { name: true },
+  });
+
   return (
     <div className="flex min-h-screen w-full bg-brand-bg">
-      <Sidebar />
+      <Sidebar role={user.role} orgName={org?.name ?? "Sua empresa"} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header />
+        <Header user={user} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

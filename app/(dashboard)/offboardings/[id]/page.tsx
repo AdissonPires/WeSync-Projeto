@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Mail, Calendar, Building2, FileText, ShieldOff, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import {
   offboardingStatusLabel,
   offboardingStatusVariant,
 } from "@/lib/offboarding-helpers";
+import { getSessionUser, canManageIntegrations } from "@/lib/auth/session";
 
 const providerLabel: Record<string, string> = {
   GOOGLE_WORKSPACE: "Google Workspace",
@@ -31,9 +32,11 @@ export default async function OffboardingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
 
-  const session = await prisma.offboardingSession.findUnique({
-    where: { id },
+  const session = await prisma.offboardingSession.findFirst({
+    where: { id, orgId: user.orgId },
     include: {
       assets: { orderBy: { createdAt: "asc" } },
       accessRevocations: true,
@@ -84,7 +87,7 @@ export default async function OffboardingDetailPage({
             <CardTitle className="text-brand-text text-base font-semibold">
               Acessos & Revogação de TI
             </CardTitle>
-            {pendingRevocations.length > 0 && (
+            {pendingRevocations.length > 0 && canManageIntegrations(user.role) && (
               <RevokeAccessButton sessionId={session.id} count={pendingRevocations.length} />
             )}
           </CardHeader>

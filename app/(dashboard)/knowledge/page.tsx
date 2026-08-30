@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FileText, Sparkles } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getSessionUser } from "@/lib/auth/session";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -22,7 +24,11 @@ const statusBadge: Record<string, { label: string; variant: "primary" | "warning
 export const dynamic = "force-dynamic";
 
 export default async function KnowledgePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const docs = await prisma.knowledgeDocument.findMany({
+    where: { offboardingSession: { orgId: user.orgId } },
     include: { offboardingSession: true },
     orderBy: { generatedAt: "desc" },
   });

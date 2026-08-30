@@ -20,6 +20,7 @@ O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o co
 - **Templates dinâmicos por departamento** (`/templates`): o RH edita o questionário da entrevista de saída por área (perguntas, placeholders, passos). O portal do colaborador carrega automaticamente o questionário do departamento correspondente, com um padrão genérico como fallback.
 - **Analytics preditivo de turnover** (`/analytics`): consolida entrevistas de saída dos últimos 3/6/12 meses via IA para estimar causas-raiz, sentimento geral e recomendações estratégicas para o CHRO, com gráfico interativo (Recharts).
 - Toasts, modais de confirmação para ações críticas (revogar acessos, cancelar processo, anonimizar dados) e skeletons de carregamento em toda a aplicação.
+- **Autenticação & multi-tenancy** (NextAuth/Auth.js): login por e-mail/senha (bcrypt) e OAuth opcional (Google Workspace, Microsoft), cadastro de nova empresa (`/register`), RBAC por papel (`ADMIN`, `IT_ADMIN`, `HR_MANAGER`, `EMPLOYEE`) aplicado no middleware e nas Server Actions, e isolamento real de dados por organização (`orgId`) em todas as consultas.
 
 ## Stack
 
@@ -28,6 +29,7 @@ O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o co
 | Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS v4 |
 | UI | Componentes estilo shadcn sobre Radix Primitives, Lucide Icons, Sonner (toasts) |
 | Dados | Prisma ORM + PostgreSQL (Supabase) |
+| Autenticação | NextAuth (Auth.js) v5 — Credentials + Google/Microsoft OAuth, JWT sessions |
 | Backend | Next.js Server Actions, validação com Zod |
 | IA | OpenAI `gpt-4o-mini` (com fallback mock local) |
 | Exportação | jsPDF + html2canvas (PDF gerado no navegador) |
@@ -51,6 +53,8 @@ cp .env.example .env.local
 - `DATABASE_URL` / `DIRECT_URL` — connection string do Postgres (Supabase: Project Settings → Database).
 - `OPENAI_API_KEY` — opcional. Sem essa chave, os relatórios de IA usam um gerador mock, mantendo o fluxo 100% funcional para demonstração.
 - `NEXT_PUBLIC_APP_URL` — usado para montar os links de entrevista gerados.
+- `AUTH_SECRET` — obrigatório. Gere com `openssl rand -base64 32`.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `AZURE_AD_CLIENT_ID` / `AZURE_AD_CLIENT_SECRET` / `AZURE_AD_TENANT_ID` — opcionais. Sem essas credenciais, os botões de login social ficam ocultos e só o login por e-mail/senha fica disponível.
 
 ### 3. Preparar o banco de dados
 
@@ -68,6 +72,9 @@ npx prisma db push
 ```bash
 npm run db:seed
 ```
+
+Cria a organização "Acme Corp" e o login administrador de demonstração:
+`admin@acme.com` / `admin123`.
 
 ### 5. Rodar em desenvolvimento
 
@@ -99,34 +106,54 @@ Para voltar à configuração de produção, restaure `prisma/schema.postgres.pr
 ## Estrutura do projeto
 
 ```
+auth.ts / auth.config.ts  Configuração do NextAuth (a segunda, sem Prisma/bcrypt, Edge-safe p/ middleware)
+middleware.ts             Bloqueio de rotas por autenticação + RBAC
 app/
-  (dashboard)/         Rotas autenticadas do painel (dashboard, desligamentos, base de conhecimento,
-                        templates, analytics, integrações, jurídico, compliance)
-  interview/[token]/   Portal público da entrevista de saída (com gravação de voz)
-  ex-portal/[token]/   Portal permanente do ex-colaborador (documentos, assinaturas, solicitações)
-  actions/             Server Actions (offboarding, entrevista, conhecimento, integrações, jurídico,
-                        compliance, ex-portal, templates, transcrição, analytics)
+  (auth)/               Telas públicas de login e cadastro
+  (dashboard)/          Rotas autenticadas do painel (dashboard, desligamentos, base de conhecimento,
+                         templates, analytics, integrações, jurídico, compliance)
+  interview/[token]/    Portal público da entrevista de saída (com gravação de voz)
+  ex-portal/[token]/    Portal permanente do ex-colaborador (documentos, assinaturas, solicitações)
+  access-denied/        Tela exibida quando um EMPLOYEE tenta acessar o painel
+  actions/               Server Actions (auth, offboarding, entrevista, conhecimento, integrações,
+                          jurídico, compliance, ex-portal, templates, transcrição, analytics)
 components/
-  ui/                  Componentes de UI reutilizáveis (estilo shadcn)
-  dashboard/           Componentes específicos do painel de RH
-  interview/           Wizard da entrevista pública + gravador de áudio
-  knowledge/           Editor/visualizador do manual de conhecimento
-  integrations/        Cards, modais e logs de integração
-  ex-portal/           Abas do portal do ex-colaborador
-  legal/               Tabelas e formulários do módulo jurídico
-  compliance/          Trilha de auditoria e anonimização LGPD
-  templates/           Editor de questionários dinâmicos por departamento
-  analytics/           Gráficos de analytics de turnover
+  auth/                 Formulários de login/cadastro e botões OAuth
+  ui/                   Componentes de UI reutilizáveis (estilo shadcn)
+  dashboard/            Componentes específicos do painel de RH
+  interview/            Wizard da entrevista pública + gravador de áudio
+  knowledge/             Editor/visualizador do manual de conhecimento
+  integrations/          Cards, modais e logs de integração
+  ex-portal/             Abas do portal do ex-colaborador
+  legal/                 Tabelas e formulários do módulo jurídico
+  compliance/            Trilha de auditoria e anonimização LGPD
+  templates/              Editor de questionários dinâmicos por departamento
+  analytics/              Gráficos de analytics de turnover
 lib/
-  services/            Serviços de IA (transcrição Whisper, analytics de turnover)
-  ai/                  Geração do manual de processos (SOP)
-  interview-template.ts  Tipos e questionário padrão do template dinâmico
-prisma/                Schema (Postgres + variante SQLite), seed de demonstração
+  auth/                  Sessão atual (getSessionUser), papéis e config de provedores OAuth
+  services/               Serviços de IA (transcrição Whisper, analytics de turnover)
+  ai/                     Geração do manual de processos (SOP)
+  interview-template.ts   Tipos e questionário padrão do template dinâmico
+prisma/                  Schema (Postgres + variante SQLite), seed de demonstração
 ```
 
 ## Modelo de dados
 
-`OffboardingSession` é a entidade central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. `ExitInterviewResponse` guarda um snapshot do template usado (`templateSnapshot`) e as respostas dinâmicas (`answers`, JSON por `questionId`), além da transcrição de voz consolidada. `InterviewTemplate` guarda o questionário customizado por departamento — sem um registro, o questionário padrão em `lib/interview-template.ts` é usado automaticamente. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
+`Organization` é o tenant raiz — todo usuário (`User`) e dado operacional pertence a uma organização (`orgId`), garantindo isolamento real entre empresas clientes. `User` segue o schema padrão do adapter do NextAuth (`Account`, `Session`, `VerificationToken`) mais `role` (`ADMIN`/`IT_ADMIN`/`HR_MANAGER`/`EMPLOYEE`) e `passwordHash` para login por credenciais.
+
+`OffboardingSession` é a entidade operacional central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. `ExitInterviewResponse` guarda um snapshot do template usado (`templateSnapshot`) e as respostas dinâmicas (`answers`, JSON por `questionId`), além da transcrição de voz consolidada. `InterviewTemplate` guarda o questionário customizado por departamento (único por `orgId` + `department`) — sem um registro, o questionário padrão em `lib/interview-template.ts` é usado automaticamente. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor e por organização. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
+
+## Autenticação & RBAC
+
+- **Rotas públicas**: `/login`, `/register`, `/interview/[token]`, `/ex-portal/[accessToken]`, `/api/auth/*`, `/access-denied`. Todo o resto exige sessão válida — o `middleware.ts` redireciona para `/login?callbackUrl=...` quando não autenticado.
+- **Papéis**:
+  | Papel | Acesso |
+  |---|---|
+  | `ADMIN` / `IT_ADMIN` | Total, incluindo `/integrations` e revogação de acessos |
+  | `HR_MANAGER` | Dashboard, desligamentos, base de conhecimento, templates, analytics, jurídico, compliance — sem `/integrations` |
+  | `EMPLOYEE` | Nenhum acesso ao painel — redirecionado para `/access-denied` |
+- A checagem de papel acontece tanto no `middleware.ts` (bloqueio de rota) quanto dentro das Server Actions sensíveis (`lib/auth/session.ts` → `getSessionUser()`), como segunda camada de defesa.
+- Login OAuth (Google/Microsoft) só é aceito para e-mails já cadastrados por um admin da organização — evita que uma conta externa qualquer entre automaticamente em um tenant.
 
 ## Build de produção
 

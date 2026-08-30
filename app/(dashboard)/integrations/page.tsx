@@ -1,15 +1,22 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { IntegrationCard } from "@/components/integrations/integration-card";
 import { IntegrationLogs } from "@/components/integrations/integration-logs";
 import { PROVIDERS } from "@/lib/integration-meta";
+import { getSessionUser, canManageIntegrations } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function IntegrationsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!canManageIntegrations(user.role)) redirect("/access-denied");
+
   const [integrations, logs] = await Promise.all([
-    prisma.integration.findMany(),
+    prisma.integration.findMany({ where: { orgId: user.orgId } }),
     prisma.integrationLog.findMany({
+      where: { integration: { orgId: user.orgId } },
       include: { integration: true },
       orderBy: { createdAt: "desc" },
       take: 25,
