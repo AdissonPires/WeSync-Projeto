@@ -116,10 +116,5 @@ npm run start
 
 ## Roadmap sugerido
 
-Este é um MVP funcional de ponta a ponta, mas ainda não está pronto para produção com dados reais de clientes. Antes disso, priorize:
+Este é um MVP funcional de ponta a ponta, mas ainda não está pronto para produção com dados reais de clientes.
 
-1. Autenticação e controle de acesso multiusuário (RH Admin, TI, Gestor).
-2. Multi-tenancy (isolamento de dados por empresa cliente).
-3. Criptografia das credenciais de integração armazenadas.
-4. Conformidade com LGPD (retenção de dados, direito ao esquecimento, auditoria).
-5. Conectores reais para os provedores de TI (hoje simulados) e uma fila assíncrona para revogações e geração de relatórios.
