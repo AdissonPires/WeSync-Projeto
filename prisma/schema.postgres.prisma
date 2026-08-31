@@ -89,6 +89,16 @@ enum UserRole {
   EMPLOYEE
 }
 
+enum AssetLogisticsMethod {
+  SHIPPING_LABEL
+  PICKUP_SCHEDULE
+}
+
+enum AssetProtocolStatus {
+  DRAFT
+  SIGNED
+}
+
 /// Empresa cliente (tenant). Todo dado operacional pertence a uma Organization.
 model Organization {
   id        String   @id @default(cuid())
@@ -257,6 +267,49 @@ model Asset {
   notes        String?     @db.Text
   updatedAt    DateTime    @updatedAt
   createdAt    DateTime    @default(now())
+
+  // --- Logística reversa -------------------------------------------------
+  logisticsMethod   AssetLogisticsMethod?
+  /// Código de rastreio (Correios/transportadora), quando o método é postagem.
+  trackingCode      String?
+  carrier           String?
+  /// Endereço e data/hora combinados para coleta na casa do colaborador.
+  pickupAddress     String?               @db.Text
+  pickupScheduledAt DateTime?
+
+  photos   AssetPhoto[]
+  protocol AssetReturnProtocol?
+}
+
+/// Registro fotográfico da conferência de danos feita pelo time de TI.
+model AssetPhoto {
+  id      String @id @default(cuid())
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  imageData  Bytes
+  mimeType   String
+  fileName   String
+  caption    String?
+  uploadedAt DateTime @default(now())
+}
+
+/// Protocolo de conferência assinado pelo time de TI — base para
+/// amortização/quitação patrimonial em caso de avaria.
+model AssetReturnProtocol {
+  id      String @id @default(cuid())
+  assetId String @unique
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  content            String              @db.Text
+  hasDamage          Boolean             @default(false)
+  amortizationAmount Float?
+  status             AssetProtocolStatus @default(DRAFT)
+  signerName         String?
+  signerIp           String?
+  signedAt           DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 model PendingTask {

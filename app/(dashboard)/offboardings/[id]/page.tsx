@@ -38,7 +38,10 @@ export default async function OffboardingDetailPage({
   const session = await prisma.offboardingSession.findFirst({
     where: { id, orgId: user.orgId },
     include: {
-      assets: { orderBy: { createdAt: "asc" } },
+      assets: {
+        orderBy: { createdAt: "asc" },
+        include: { photos: { orderBy: { uploadedAt: "desc" } }, protocol: true },
+      },
       accessRevocations: true,
       knowledgeDocument: true,
     },

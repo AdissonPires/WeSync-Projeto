@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, AlertOctagon, Laptop, Monitor, Mouse, IdCard, Plus } from "lucide-react";
-import type { Asset, AssetStatus, AssetType } from "@prisma/client";
+import { CheckCircle2, AlertOctagon, Laptop, Monitor, Mouse, IdCard, Plus, Truck } from "lucide-react";
+import type { Asset, AssetPhoto, AssetReturnProtocol, AssetStatus, AssetType } from "@prisma/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,13 @@ import {
 } from "@/components/ui/select";
 import { assetTypeLabel, assetStatusLabel, computeAssetProgress } from "@/lib/offboarding-helpers";
 import { updateAssetStatus, addAsset } from "@/app/actions/offboarding";
+import { AssetLogisticsDialog } from "@/components/dashboard/asset-logistics-dialog";
 import { cn } from "@/lib/utils";
+
+type AssetWithLogistics = Asset & {
+  photos: AssetPhoto[];
+  protocol: AssetReturnProtocol | null;
+};
 
 const assetIcon: Record<AssetType, typeof Laptop> = {
   NOTEBOOK: Laptop,
@@ -37,7 +43,7 @@ export function AssetChecklist({
   assets,
 }: {
   offboardingSessionId: string;
-  assets: Asset[];
+  assets: AssetWithLogistics[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -109,10 +115,20 @@ export function AssetChecklist({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={statusBadgeVariant[asset.status]}>
                   {assetStatusLabel[asset.status]}
                 </Badge>
+                <AssetLogisticsDialog
+                  asset={asset}
+                  assetLabel={`${assetTypeLabel[asset.type]} — ${asset.serialNumber}`}
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      <Truck className="h-3.5 w-3.5" />
+                      Logística & Conferência
+                    </Button>
+                  }
+                />
                 <Button
                   size="sm"
                   variant={asset.status === "RETURNED" ? "outline" : "primary"}

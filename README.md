@@ -12,6 +12,8 @@ O WSync acompanha o desligamento de um colaborador de ponta a ponta: coleta o co
 - **Geração de relatório por IA**: ao final da entrevista, um manual de processos em Markdown é gerado automaticamente (via OpenAI `gpt-4o-mini`, com fallback determinístico caso nenhuma chave esteja configurada).
 - **Base de Conhecimento**: visualização, edição, aprovação pelo gestor, exportação em PDF e cópia em Markdown dos manuais gerados.
 - **Gestão de ativos físicos**: checklist de notebooks, monitores, periféricos e crachás por sessão, com status de devolução.
+- **Logística reversa de ativos**: geração de código de postagem (Correios) ou agendamento de coleta na casa do colaborador remoto, por equipamento.
+- **Checklist fotográfico de danos**: o time de TI anexa fotos da conferência, registra se há avaria (com valor de amortização opcional) e gera um protocolo em Markdown assinado digitalmente (nome, IP, data/hora) — a assinatura atualiza o status do ativo automaticamente.
 - **Central de Integrações**: configuração de credenciais por provedor (Google Workspace, Microsoft Entra ID, Slack, GitHub, Okta, Notion, Figma), teste de conexão simulado e histórico de execuções.
 - **Portal permanente do ex-colaborador** (`/ex-portal/[accessToken]`) — área self-service sem senha para baixar Informe de Rendimentos e holerites, assinar digitalmente (ou rejeitar, com justificativa) Aviso Prévio e Termo de Quitação, e abrir solicitações ao RH (carta de recomendação, dúvidas).
 - **Módulo Jurídico** (`/legal`): status de assinatura de cada termo, reenvio de link de assinatura com 1 clique, upload de documentos fiscais (PDF) por colaborador e triagem das solicitações recebidas do portal.
@@ -115,8 +117,10 @@ app/
   interview/[token]/    Portal público da entrevista de saída (com gravação de voz)
   ex-portal/[token]/    Portal permanente do ex-colaborador (documentos, assinaturas, solicitações)
   access-denied/        Tela exibida quando um EMPLOYEE tenta acessar o painel
+  api/assets/photos/[id] Serve as fotos da conferência (autenticado, escopado por organização)
   actions/               Server Actions (auth, offboarding, entrevista, conhecimento, integrações,
-                          jurídico, compliance, ex-portal, templates, transcrição, analytics)
+                          jurídico, compliance, ex-portal, templates, transcrição, analytics,
+                          logística de ativos)
 components/
   auth/                 Formulários de login/cadastro e botões OAuth
   ui/                   Componentes de UI reutilizáveis (estilo shadcn)
@@ -141,7 +145,7 @@ prisma/                  Schema (Postgres + variante SQLite), seed de demonstra�
 
 `Organization` é o tenant raiz — todo usuário (`User`) e dado operacional pertence a uma organização (`orgId`), garantindo isolamento real entre empresas clientes. `User` segue o schema padrão do adapter do NextAuth (`Account`, `Session`, `VerificationToken`) mais `role` (`ADMIN`/`IT_ADMIN`/`HR_MANAGER`/`EMPLOYEE`) e `passwordHash` para login por credenciais.
 
-`OffboardingSession` é a entidade operacional central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. `ExitInterviewResponse` guarda um snapshot do template usado (`templateSnapshot`) e as respostas dinâmicas (`answers`, JSON por `questionId`), além da transcrição de voz consolidada. `InterviewTemplate` guarda o questionário customizado por departamento (único por `orgId` + `department`) — sem um registro, o questionário padrão em `lib/interview-template.ts` é usado automaticamente. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor e por organização. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
+`OffboardingSession` é a entidade operacional central, relacionada a `InterviewToken`, `ExitInterviewResponse`, `KnowledgeDocument`, `Asset[]`, `PendingTask[]`, `AccessRevocation[]`, `ExPortalAccess`, `FiscalDocument[]`, `LegalTerm[]`, `HRRequest[]` e `AuditLog[]`. Cada `Asset` pode ter dados de logística reversa (código de postagem ou coleta agendada), `AssetPhoto[]` (fotos da conferência) e um `AssetReturnProtocol` (protocolo de devolução assinado, que determina se o ativo foi recebido ou avariado). `ExitInterviewResponse` guarda um snapshot do template usado (`templateSnapshot`) e as respostas dinâmicas (`answers`, JSON por `questionId`), além da transcrição de voz consolidada. `InterviewTemplate` guarda o questionário customizado por departamento (único por `orgId` + `department`) — sem um registro, o questionário padrão em `lib/interview-template.ts` é usado automaticamente. Integrações e seus logs (`Integration`, `IntegrationLog`) são independentes por provedor e por organização. `AuditLog` nunca é editado ou apagado pela aplicação — é a trilha de auditoria imutável usada pelo módulo de Compliance.
 
 ## Autenticação & RBAC
 
