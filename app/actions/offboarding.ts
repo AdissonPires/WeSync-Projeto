@@ -6,10 +6,12 @@ import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { createOffboardingSchema, addAssetSchema } from "@/lib/validations";
 import { getSessionUser } from "@/lib/auth/session";
 
-const DEFAULT_ASSETS: { type: "NOTEBOOK" | "MONITOR" | "PERIPHERAL" | "BADGE"; serialNumber: string }[] = [
-  { type: "NOTEBOOK", serialNumber: "A definir" },
-  { type: "BADGE", serialNumber: "Crachá de acesso" },
-];
+function defaultAssets(orgId: string) {
+  return [
+    { orgId, type: "NOTEBOOK" as const, serialNumber: "A definir" },
+    { orgId, type: "BADGE" as const, serialNumber: "Crachá de acesso" },
+  ];
+}
 
 const CAN_MANAGE_OFFBOARDINGS = ["ADMIN", "IT_ADMIN", "HR_MANAGER"];
 
@@ -36,7 +38,7 @@ export async function createOffboarding(
         role,
         department,
         exitDate: new Date(exitDate),
-        assets: { create: DEFAULT_ASSETS },
+        assets: { create: defaultAssets(user.orgId) },
         accessRevocations: {
           create: accessToRevoke.map((provider) => ({
             provider: mapAccessLabelToProvider(provider),
@@ -136,7 +138,7 @@ export async function addAsset(input: unknown): Promise<ActionResult> {
     });
     if (!session) return fail("Sessão não encontrada.");
 
-    await prisma.asset.create({ data: parsed.data });
+    await prisma.asset.create({ data: { ...parsed.data, orgId: user.orgId } });
     revalidatePath(`/offboardings/${parsed.data.offboardingSessionId}`);
     return ok();
   } catch (error) {

@@ -109,6 +109,7 @@ model Organization {
   integrations        Integration[]
   interviewTemplates  InterviewTemplate[]
   auditLogs           AuditLog[]
+  assets              Asset[]
 }
 
 /// Usuário interno (RH/TI/Admin) — autenticado via NextAuth.
@@ -151,6 +152,7 @@ model Account {
   session_state     String?
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 /// Sessões de banco (usadas para linkagem OAuth do adapter; login por
@@ -161,6 +163,8 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expires      DateTime
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -198,7 +202,10 @@ model OffboardingSession {
   hrRequests        HRRequest[]
   auditLogs         AuditLog[]
 
-  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, exitDate])
+  @@index([orgId, department])
+  @@index([orgId, createdAt])
 }
 
 model InterviewToken {
@@ -253,10 +260,16 @@ model KnowledgeDocument {
   generatedAt     DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   approvedAt      DateTime?
+
+  @@index([status])
 }
 
 model Asset {
   id                   String             @id @default(cuid())
+  /// Denormalizado a partir de offboardingSession.orgId — isolamento multi-tenant
+  /// direto, em defesa de profundidade além do filtro via relação.
+  orgId                String
+  org                  Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   offboardingSessionId String
   offboardingSession   OffboardingSession @relation(fields: [offboardingSessionId], references: [id], onDelete: Cascade)
 
@@ -278,6 +291,10 @@ model Asset {
 
   photos   AssetPhoto[]
   protocol AssetReturnProtocol?
+
+  @@index([orgId])
+  @@index([offboardingSessionId])
+  @@index([status])
 }
 
 /// Registro fotográfico da conferência de danos feita pelo time de TI.
@@ -291,6 +308,8 @@ model AssetPhoto {
   fileName   String
   caption    String?
   uploadedAt DateTime @default(now())
+
+  @@index([assetId])
 }
 
 /// Protocolo de conferência assinado pelo time de TI — base para
@@ -321,6 +340,8 @@ model PendingTask {
   urgent      Boolean  @default(false)
   done        Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([offboardingSessionId])
 }
 
 model Integration {
@@ -350,6 +371,9 @@ model IntegrationLog {
   statusCode Int
   message    String
   createdAt  DateTime  @default(now())
+
+  @@index([integrationId])
+  @@index([createdAt])
 }
 
 model AccessRevocation {
@@ -361,6 +385,8 @@ model AccessRevocation {
   revoked   Boolean             @default(false)
   revokedAt DateTime?
   createdAt DateTime            @default(now())
+
+  @@index([offboardingSessionId, revoked])
 }
 
 /// Acesso permanente (self-service) do ex-colaborador ao seu próprio portal.
@@ -386,6 +412,8 @@ model FiscalDocument {
   mimeType   String
   content    Bytes
   uploadedAt DateTime           @default(now())
+
+  @@index([offboardingSessionId])
 }
 
 model LegalTerm {
@@ -404,6 +432,9 @@ model LegalTerm {
   rejectionReason String?        
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  @@index([offboardingSessionId])
+  @@index([status])
 }
 
 model HRRequest {
@@ -416,6 +447,9 @@ model HRRequest {
   status     HRRequestStatus @default(OPEN)
   createdAt  DateTime        @default(now())
   resolvedAt DateTime?
+
+  @@index([offboardingSessionId])
+  @@index([status])
 }
 
 /// Trilha de auditoria imutável — nunca é editada ou apagada pela aplicação.
@@ -434,5 +468,5 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   @@index([offboardingSessionId])
-  @@index([orgId])
+  @@index([orgId, createdAt])
 }

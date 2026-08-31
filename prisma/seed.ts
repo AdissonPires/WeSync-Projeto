@@ -216,8 +216,8 @@ async function main() {
       status: "IT_ACTION",
       assets: {
         create: [
-          { type: "NOTEBOOK", serialNumber: "MBP-2023-0091", status: "RETURNED" },
-          { type: "BADGE", serialNumber: "Crachá #4821", status: "PENDING_RETURN" },
+          { orgId: ORG_ID, type: "NOTEBOOK", serialNumber: "MBP-2023-0091", status: "RETURNED" },
+          { orgId: ORG_ID, type: "BADGE", serialNumber: "Crachá #4821", status: "PENDING_RETURN" },
         ],
       },
       accessRevocations: {
@@ -345,7 +345,7 @@ async function main() {
       exitDate: new Date("2026-09-05"),
       status: "AI_CAPTURE",
       assets: {
-        create: [{ type: "NOTEBOOK", serialNumber: "DELL-2022-0044", status: "PENDING_RETURN" }],
+        create: [{ orgId: ORG_ID, type: "NOTEBOOK", serialNumber: "DELL-2022-0044", status: "PENDING_RETURN" }],
       },
       accessRevocations: {
         create: [
