@@ -20,6 +20,10 @@ export const authConfig: NextAuthConfig = {
         token.id = user.id as string;
         token.role = (user as { role?: string }).role ?? "EMPLOYEE";
         token.orgId = (user as { orgId?: string }).orgId ?? "";
+        // Presente apenas no login por credenciais (ver authorize() em auth.ts);
+        // o login OAuth preenche isso depois, no override do jwt callback em auth.ts.
+        const orgName = (user as { orgName?: string }).orgName;
+        if (orgName) token.orgName = orgName;
       }
       return token;
     },
@@ -28,6 +32,7 @@ export const authConfig: NextAuthConfig = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.orgId = token.orgId as string;
+        session.user.orgName = (token.orgName as string) ?? "Sua empresa";
       }
       return session;
     },

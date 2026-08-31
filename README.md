@@ -161,6 +161,20 @@ prisma/                  Schema (Postgres + variante SQLite), seed de demonstra�
 - A checagem de papel acontece tanto no `middleware.ts` (bloqueio de rota) quanto dentro das Server Actions sensíveis (`lib/auth/session.ts` → `getSessionUser()`), como segunda camada de defesa.
 - Login OAuth (Google/Microsoft) só é aceito para e-mails já cadastrados por um admin da organização — evita que uma conta externa qualquer entre automaticamente em um tenant.
 
+## Performance
+
+- O nome da organização é cravado no JWT no login (`orgName`), não buscado no banco a
+  cada navegação — antes disso, o layout do dashboard fazia uma consulta extra ao
+  Postgres remoto em *todo clique*, somando latência de rede desnecessária.
+- `revokeAllAccess` batch todas as revogações/logs em consultas em lote
+  (`updateMany`/`createMany`) em vez de um loop com 2-3 idas ao banco por acesso
+  revogado (N+1 clássico).
+- Consultas independentes na mesma página usam `Promise.all` em vez de `await`
+  sequencial (ex: dashboard principal).
+- Como o app usa um Postgres remoto (Supabase), cada consulta ainda paga o custo de
+  ida-e-volta de rede — reduzir o *número* de consultas por ação é o que mais importa
+  aqui, mais do que otimizar cada query individualmente.
+
 ## Build de produção
 
 ```bash

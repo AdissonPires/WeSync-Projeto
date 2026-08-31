@@ -6,6 +6,9 @@ export type SessionUser = {
   email: string;
   role: "ADMIN" | "IT_ADMIN" | "HR_MANAGER" | "EMPLOYEE";
   orgId: string;
+  /// Cravado no JWT no login — lendo daqui evita uma consulta ao banco em
+  /// toda navegação só para exibir o nome da empresa na sidebar.
+  orgName: string;
 };
 
 /** Retorna o usuário logado (ou null) — uso em Server Actions e Server Components. */
@@ -18,6 +21,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     email: session.user.email!,
     role: session.user.role as SessionUser["role"],
     orgId: session.user.orgId,
+    orgName: session.user.orgName || "Sua empresa",
   };
 }
 

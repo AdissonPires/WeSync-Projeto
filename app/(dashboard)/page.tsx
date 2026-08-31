@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [sessions, tasks, pendingRevocations] = await Promise.all([
+  const [sessions, tasks, pendingRevocations, activeCount] = await Promise.all([
     prisma.offboardingSession.findMany({
       where: { orgId: user.orgId, status: { in: ["AI_CAPTURE", "IT_ACTION"] } },
       include: { knowledgeDocument: true, assets: true },
@@ -28,11 +28,10 @@ export default async function DashboardPage() {
     prisma.accessRevocation.count({
       where: { revoked: false, offboardingSession: { orgId: user.orgId } },
     }),
+    prisma.offboardingSession.count({
+      where: { orgId: user.orgId, status: { in: ["AI_CAPTURE", "IT_ACTION"] } },
+    }),
   ]);
-
-  const activeCount = await prisma.offboardingSession.count({
-    where: { orgId: user.orgId, status: { in: ["AI_CAPTURE", "IT_ACTION"] } },
-  });
 
   const avgAiProgress =
     sessions.length > 0

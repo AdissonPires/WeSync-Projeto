@@ -90,38 +90,51 @@ export async function revokeAllAccess(offboardingSessionId: string): Promise<Act
   if (!canManageIntegrations(user.role)) return fail("Sem permissão para revogar acessos.");
 
   try {
-    const session = await prisma.offboardingSession.findFirst({
-      where: { id: offboardingSessionId, orgId: user.orgId },
-      select: { id: true },
-    });
+    // As duas consultas são independentes — busca em paralelo em vez de
+    // sequencial, e depois resolve as integrações e grava tudo em lote (evita
+    // o clássico N+1 de fazer 2-3 idas ao banco por revogação, dentro de um loop).
+    const [session, revocations] = await Promise.all([
+      prisma.offboardingSession.findFirst({
+        where: { id: offboardingSessionId, orgId: user.orgId },
+        select: { id: true },
+      }),
+      prisma.accessRevocation.findMany({
+        where: { offboardingSessionId, revoked: false },
+      }),
+    ]);
     if (!session) return fail("Sessão não encontrada.");
 
-    const revocations = await prisma.accessRevocation.findMany({
-      where: { offboardingSessionId, revoked: false },
-    });
-
-    for (const revocation of revocations) {
-      const integration = await prisma.integration.findUnique({
-        where: { orgId_provider: { orgId: user.orgId, provider: revocation.provider } },
+    if (revocations.length > 0) {
+      const providers = [...new Set(revocations.map((r) => r.provider))];
+      const integrations = await prisma.integration.findMany({
+        where: { orgId: user.orgId, provider: { in: providers } },
       });
+      const integrationByProvider = new Map(integrations.map((i) => [i.provider, i]));
 
-      await prisma.accessRevocation.update({
-        where: { id: revocation.id },
-        data: { revoked: true, revokedAt: new Date() },
-      });
+      const logsData = revocations
+        .map((r) => ({ revocation: r, integration: integrationByProvider.get(r.provider) }))
+        .filter(
+          (
+            entry
+          ): entry is { revocation: (typeof revocations)[number]; integration: NonNullable<typeof entry.integration> } =>
+            !!entry.integration
+        )
+        .map(({ revocation, integration }) => ({
+          integrationId: integration.id,
+          action: "revoke_access",
+          targetUser: offboardingSessionId,
+          status: "SUCCESS" as const,
+          statusCode: 200,
+          message: `Acesso revogado (${revocation.provider}).`,
+        }));
 
-      if (integration) {
-        await prisma.integrationLog.create({
-          data: {
-            integrationId: integration.id,
-            action: "revoke_access",
-            targetUser: offboardingSessionId,
-            status: "SUCCESS",
-            statusCode: 200,
-            message: `Acesso revogado (${revocation.provider}).`,
-          },
-        });
-      }
+      await Promise.all([
+        prisma.accessRevocation.updateMany({
+          where: { id: { in: revocations.map((r) => r.id) } },
+          data: { revoked: true, revokedAt: new Date() },
+        }),
+        prisma.integrationLog.createMany({ data: logsData }),
+      ]);
     }
 
     await prisma.offboardingSession.update({
